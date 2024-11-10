@@ -10,6 +10,7 @@ def evalFunction():
     totalPoints = 0
 
     for z, puzzle in enumerate(puzzles, start=1):
+        clear_previous_guesses()  # Reset guesses at the start of each puzzle
         shuffledPuzzle = shufflePuzzles(puzzle)
         strikes, correctGroups, previousGuesses, error, isOneAway = 0, [], [], 0, False
         invalidGuesses = 0
@@ -30,9 +31,15 @@ def evalFunction():
             endTurn = r.json()['endTurn']
             print("Participant guess:", participantGuess)
 
+            # Validate guess length
+            if len(participantGuess) != 4:
+                error = "Please enter 4 words."
+                invalidGuesses += 1
+                print("Invalid guess length:", participantGuess)
+                continue
+
             # Check for duplicates
-            sortedGuess = sorted(participantGuess)
-            if sortedGuess in [sorted(g) for g in previousGuesses]:
+            if sorted(participantGuess) in [sorted(g) for g in previousGuesses]:
                 error = "You have already guessed this combination."
                 invalidGuesses += 1
                 print("Duplicate guess:", participantGuess)
@@ -40,13 +47,6 @@ def evalFunction():
             else:
                 error = 0
                 previousGuesses.append(participantGuess)
-
-            # Validate guess length
-            if len(participantGuess) != 4:
-                error = "Please enter 4 words."
-                invalidGuesses += 1
-                print("Invalid guess length:", participantGuess)
-                continue
 
             if endTurn:
                 break
@@ -74,6 +74,11 @@ def evalFunction():
         print(f"Total points scored by model on puzzle {z}: {pointsForPuzzle}")
 
     print(f"Overall total points scored by model: {totalPoints}")
+
+def clear_previous_guesses():
+    global previous_guesses_global
+    previous_guesses_global = set()
+
 
 def load_puzzles():
     with open('sample_data.json', 'r', encoding='utf-8') as file:
