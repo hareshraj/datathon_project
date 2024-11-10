@@ -1,53 +1,34 @@
-# starter_code.py
 import numpy as np
 from itertools import combinations
 from gensim.models import KeyedVectors
 
+# Load the Word2Vec model
 word2vec_model = KeyedVectors.load_word2vec_format('/Users/haresh/gensim-data/word2vec-google-news-300/word2vec-google-news-300', binary=True)
 
-def get_word2vec(): 
+def get_word2vec():
     return word2vec_model
+
+# To store previous guesses for each puzzle
+previous_guesses_global = set()
 
 def model(words, strikes, isOneAway, correctGroups, previousGuesses, error):
     """
-    _______________________________________________________
-    Parameters:
-    words - 1D Array with 16 shuffled words
-    strikes - Integer with number of strikes
-    isOneAway - Boolean if your previous guess is one word away from the correct answer
-    correctGroups - 2D Array with groups previously guessed correctly
-    previousGuesses - 2D Array with previous guesses
-    error - String with error message (0 if no error)
-
-    Returns:
-    guess - 1D Array with 4 words
-    endTurn - Boolean if you want to end the puzzle
-    _______________________________________________________
+    Model function for word grouping puzzle
     """
-
-    # Your Code here
-    # Good Luck!
- 
+    global previous_guesses_global
+    
+    # Convert string representation to numpy array if needed
     if isinstance(words, str):
         words = np.array(eval(words))
     
-    # Ensure every guess has exactly 4 words
-    if error and "Please enter 4 words" in error:
-        guess = list(words[:4])
-        return guess, False
-
-    # Check for and avoid duplicate guesses
-    if error and "already guessed" in error:
-        all_words = set(words)
-        previous_words = set([word for guess in previousGuesses for word in guess])
-        available_words = list(all_words - previous_words)
-        if len(available_words) >= 4:
-            guess = available_words[:4]
-            return guess, False
-
+    # Get available words (words not yet used in correct groups)
     used_words = set([word for group in correctGroups for word in group])
     available_words = [word for word in words if word not in used_words]
-
+    
+    # If we don't have enough available words, end the turn
+    if len(available_words) < 4:
+        return [], True
+    
     # Use Word2Vec to find similarities and group similar words
     def get_word_embedding(word):
         try:
@@ -58,27 +39,35 @@ def model(words, strikes, isOneAway, correctGroups, previousGuesses, error):
     word_vectors = np.array([get_word_embedding(word) for word in available_words])
     similarity_matrix = np.dot(word_vectors, word_vectors.T)
 
-    # Find the most similar group of 4 words
-    most_similar_group = None
-    max_similarity = -np.inf
-
+    # Find the most similar group of 4 words that hasn't been guessed before
+    potential_groups = []
     for combination in combinations(range(len(available_words)), 4):
-        similarity_score = sum(similarity_matrix[i, j] for i, j in combinations(combination, 2))
-        if similarity_score > max_similarity:
-            max_similarity = similarity_score
-            most_similar_group = [available_words[i] for i in combination]
-
-    if most_similar_group:
-        return most_similar_group, False
-
-    # If we have too many strikes or found most groups, consider ending
+        group = [available_words[i] for i in combination]
+        # Check if this group has been guessed before
+        if tuple(sorted(group)) not in previous_guesses_global:
+            similarity_score = sum(similarity_matrix[i, j] for i, j in combinations(combination, 2))
+            potential_groups.append((group, similarity_score))
+    
+    # Sort groups by similarity score
+    potential_groups.sort(key=lambda x: x[1], reverse=True)
+    
+    # If we have any valid groups, return the most similar one
+    if potential_groups:
+        best_group = potential_groups[0][0]
+        previous_guesses_global.add(tuple(sorted(best_group)))
+        return best_group, False
+    
+    # If we have too many strikes or found most groups, end the turn
     if strikes >= 3 or len(correctGroups) >= 3:
         return [], True
-
-    # If no similar group is found, make a reasonable guess with unused words
-    if len(available_words) >= 4:
-        guess = available_words[:4]
-        return guess, False
-
-    # If we can't make a good guess, end the turn
+    
+    # If we somehow can't make a valid guess, end the turn
     return [], True
+
+def clear_previous_guesses():
+    """Reset the previous guesses at the start of each puzzle"""
+    global previous_guesses_global
+    previous_guesses_global = set()
+
+# Ensure the clear function is called at the start of a new puzzle
+clear_previous_guesses()
